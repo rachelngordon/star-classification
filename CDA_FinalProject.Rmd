@@ -1,0 +1,372 @@
+---
+title: "CDA_FinalProject"
+author: "Rachel Gordon"
+date: "4/26/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Exploratory Data Analysis
+
+```{r}
+# read in the data
+dat <- read.csv("Skyserver_SQL2_27_2018 6_51_39 PM.csv", header = TRUE)
+# check for missing data
+is.na(dat)
+# separate out a test set for evaluating accuracy
+set.seed(1234)
+ind <- sample(1:10000, 3000)
+test <- dat[ind,]
+SDSS <- dat[-ind,]
+# convert the observed classes to numerical levels
+SDSS[SDSS=="STAR"] <- 0
+SDSS[SDSS=="GALAXY"] <- 1
+SDSS[SDSS=="QSO"] <- 2
+SDSS$class <- as.integer(SDSS$class)
+```
+
+```{r}
+# summary of the data
+summary(SDSS)
+# correlation matrix for all the variables in the data set
+cor(SDSS)
+```
+
+```{r}
+# visualize the frequency of each class within the data
+class_freq <- table(SDSS$class)
+barplot(class_freq, xlab = "Frequency", ylab = "Class", main = "Class Frequency", 
+        col = "cornflowerblue", border = NA, horiz = TRUE)
+```
+
+
+Most observations were galaxies and stars, not very many quasars
+
+# Model Selection (Baseline-Category Logit)
+
+```{r}
+# fit a baseline category logit model with all possible explanatory variables
+# check for significance of predictors
+library(VGAM)
+fit <- vglm(class ~ ra + dec + u + g + r + i + z + run + camcol + field + redshift + plate 
+            + mjd + fiberid, family = multinomial, data = SDSS)
+summary(fit)
+```
+
+```{r}
+# check for significance when used as sole predictors
+# remove variables with p-values > 0.2
+fit.ra <- vglm(class ~ ra, family = multinomial, data = SDSS)
+summary(fit.ra)
+fit.dec <- vglm(class ~ dec, family = multinomial, data = SDSS)
+summary(fit.dec)
+fit.i <- vglm(class ~ i, family = multinomial, data = SDSS)
+summary(fit.i)
+fit.r <- vglm(class ~ r, family = multinomial, data = SDSS)
+summary(fit.r)
+fit.run <- vglm(class ~ run, family = multinomial, data = SDSS)
+summary(fit.run)
+fit.camcol <- vglm(class ~ camcol, family = multinomial, data = SDSS)
+summary(fit.camcol)
+fit.field <- vglm(class ~ field, family = multinomial, data = SDSS)
+summary(fit.field)
+fit.plate <- vglm(class ~ plate, family = multinomial, data = SDSS)
+summary(fit.plate)
+fit.mjd <- vglm(class ~ mjd, family = multinomial, data = SDSS)
+summary(fit.mjd)
+fit.fiberid <- vglm(class ~ fiberid, family = multinomial, data = SDSS)
+summary(fit.fiberid)
+```
+
+
+camcol and field were not significant
+
+```{r}
+# initial main effects model
+fit.me <- vglm(class ~ ra + dec + u + g + r + i + z + run + redshift + plate + mjd + fiberid, 
+               family = multinomial, data = SDSS)
+summary(fit.me)
+```
+
+```{r}
+# conduct backward elimination
+AIC(fit.me)
+fit1 <- vglm(class ~ ra + u + g + r + i + z + run + redshift + plate + mjd + fiberid, 
+             family = multinomial, data = SDSS)
+AIC(fit1)
+fit2 <- vglm(class ~ ra + u + g + r + i + z + redshift + plate + mjd + fiberid, 
+             family = multinomial, data = SDSS)
+AIC(fit2)
+fit3 <- vglm(class ~ ra + u + g + r + z + run + redshift + plate + mjd + fiberid, 
+             family = multinomial, data = SDSS)
+AIC(fit3)
+fit4 <- vglm(class ~ ra + u + g + r + z + run + redshift + plate + fiberid, 
+             family = multinomial, data = SDSS)
+AIC(fit4)
+fit5 <- vglm(class ~ ra + u + g + z + run + redshift + plate + fiberid, 
+             family = multinomial, data = SDSS)
+AIC(fit5)
+fit6 <- vglm(class ~ ra + u + g + z + run + redshift + plate, 
+             family = multinomial, data = SDSS)
+AIC(fit6)
+fit7 <- vglm(class ~ ra + u + g + z + redshift + plate, 
+             family = multinomial, data = SDSS)
+AIC(fit7)
+```
+
+
+AIC after removing run was larger by almost 20
+
+```{r}
+# add additional significant variables back into the model
+fit.dec2 <- vglm(class ~ dec + ra + u + g + z + run + redshift + plate, 
+                 family = multinomial, data = SDSS)
+summary(fit.dec2)
+fit.r2 <- vglm(class ~ r + ra + u + g + z + run + redshift + plate, 
+                 family = multinomial, data = SDSS)
+summary(fit.r2)
+fit.i2 <- vglm(class ~ i + ra + u + g + z + run + redshift + plate, 
+               family = multinomial, data = SDSS)
+summary(fit.i2)
+fit.camcol2 <- vglm(class ~ camcol + ra + u + g + z + run + redshift + plate, 
+               family = multinomial, data = SDSS)
+summary(fit.camcol2)
+fit.field2 <- vglm(class ~ field + ra + u + g + z + run + redshift + plate, 
+               family = multinomial, data = SDSS)
+summary(fit.field2)
+fit.mjd2 <- vglm(class ~ mjd + ra + u + g + z + run + redshift + plate, 
+                   family = multinomial, data = SDSS)
+summary(fit.mjd2)
+fit.fiberid2 <- vglm(class ~ fiberid + ra + u + g + z + run + redshift + plate, 
+                   family = multinomial, data = SDSS)
+summary(fit.fiberid2)
+```
+
+
+None of the variables were significant
+
+```{r}
+# check for plausible interactions
+fit.rau <- vglm(class ~ ra + u + g + z + run + redshift + plate + ra*u, 
+                family = multinomial, data = SDSS)
+summary(fit.rau)
+fit.rag <- vglm(class ~ ra + u + g + z + run + redshift + plate + ra*g, 
+                family = multinomial, data = SDSS)
+summary(fit.rag)
+fit.raz <- vglm(class ~ ra + u + g + z + run + redshift + plate + ra*z, 
+                family = multinomial, data = SDSS)
+summary(fit.raz)
+fit.ug <- vglm(class ~ ra + u + g + z + run + redshift + plate + u*g, 
+                family = multinomial, data = SDSS)
+summary(fit.ug)
+fit.uz <- vglm(class ~ ra + u + g + z + run + redshift + plate + u*z, 
+                          family = multinomial, data = SDSS)
+summary(fit.uz)
+fit.gz <- vglm(class ~ ra + u + g + z + run + redshift + plate + g*z, 
+                family = multinomial, data = SDSS)
+summary(fit.gz)
+fit.ugz <- vglm(class ~ ra + u + g + z + run + redshift + plate + u*g*z, 
+                family = multinomial, data = SDSS)
+summary(fit.ugz)
+fit.rrs <- vglm(class ~ ra + u + g + z + run + redshift + plate + run*redshift, 
+                family = multinomial, data = SDSS)
+summary(fit.rrs)
+fit.rp <- vglm(class ~ ra + u + g + z + run + redshift + plate + run*plate, 
+               family = multinomial, data = SDSS)
+summary(fit.rp)
+fit.rsp <- vglm(class ~ ra + u + g + z + run + redshift + plate + redshift*plate, 
+                family = multinomial, data = SDSS)
+summary(fit.rsp)
+```
+
+Interaction between redshift and plate was very significant
+
+```{r}
+# final model
+fit.final <- vglm(class ~ ra + u + g + z + run + redshift + plate + redshift*plate, 
+                  family = multinomial, data = SDSS)
+summary(fit.final)
+# check the significance using the likelihood ratio test
+fit0 <- vglm(class ~ 1, family = multinomial, data = SDSS)
+lrtest(fit6, fit0)
+lrtest(fit.final, fit6)
+```
+
+Model without interaction term was very significant and interaction term was also very significant on its own
+
+# Binomial Logistic Regression
+
+```{r}
+# binomial logistic regression model for predicting if an observation is a star or not
+SDSS[SDSS==2] <- 1
+binom.fit <- glm(class ~ ra + dec + u + g + r + i + z + run + camcol + field + redshift 
+            + plate + mjd + fiberid, family = binomial, data = SDSS)
+# check for significance
+summary(binom.fit)
+```
+
+```{r}
+# check for significance when used as sole predictors
+# remove variables with p-values > 0.2
+binom.ra <- glm(class ~ ra, family = binomial, data = SDSS)
+summary(binom.ra)
+binom.dec <- glm(class ~ dec, family = binomial, data = SDSS)
+summary(binom.dec)
+binom.u <- glm(class ~ u, family = binomial, data = SDSS)
+summary(binom.u)
+binom.g <- glm(class ~ g, family = binomial, data = SDSS)
+summary(binom.g)
+binom.r <- glm(class ~ r, family = binomial, data = SDSS)
+summary(binom.r)
+binom.i <- glm(class ~ i, family = binomial, data = SDSS)
+summary(binom.i)
+binom.z <- glm(class ~ z, family = binomial, data = SDSS)
+summary(binom.z)
+binom.run <- glm(class ~ run, family = binomial, data = SDSS)
+summary(binom.run)
+binom.field <- glm(class ~ field, family = binomial, data = SDSS)
+summary(binom.field)
+binom.plate <- glm(class ~ plate, family = binomial, data = SDSS)
+summary(binom.plate)
+binom.mjd <- glm(class ~ mjd, family = binomial, data = SDSS)
+summary(binom.mjd)
+binom.fiberid <- glm(class ~ fiberid, family = binomial, data = SDSS)
+summary(binom.fiberid)
+```
+
+
+i and field were not significant
+
+```{r}
+# initial main effects model
+binom.me <- glm(class ~ ra + dec + u + g + r + z + run + camcol + redshift + plate + mjd 
+                + fiberid, family = binomial, data = SDSS)
+summary(binom.me)
+```
+
+```{r}
+# conduct backward elimination
+step(binom.me, direction = "backward")
+binom.step <- glm(class ~ dec + z + camcol + redshift + plate, family = binomial, 
+                   data = SDSS)
+summary(binom.step)
+```
+
+```{r}
+# add additional significant variables back into the model
+binom.ra2 <- glm(class ~ ra + dec + z + camcol + redshift + plate, family = binomial, 
+                  data = SDSS)
+summary(binom.ra2)
+binom.u2 <- glm(class ~ u + dec + z + camcol + redshift + plate, family = binomial, 
+                 data = SDSS)
+summary(binom.u2)
+binom.g2 <- glm(class ~ g + dec + z + camcol + redshift + plate, family = binomial, 
+                 data = SDSS)
+summary(binom.g2)
+binom.r2 <- glm(class ~ r + dec + z + camcol + redshift + plate, family = binomial, 
+                 data = SDSS)
+summary(binom.r2)
+binom.i2 <- glm(class ~ i + dec + z + camcol + redshift + plate, family = binomial, 
+                 data = SDSS)
+summary(binom.i2)
+binom.run2 <- glm(class ~ run + dec + z + camcol + redshift + plate, family = binomial, 
+                 data = SDSS)
+summary(binom.run2)
+binom.field2 <- glm(class ~ field + dec + z + camcol + redshift + plate, family = binomial, 
+                 data = SDSS)
+summary(binom.field2)
+binom.mjd2 <- glm(class ~ mjd + dec + z + camcol + redshift + plate, family = binomial, 
+                 data = SDSS)
+summary(binom.mjd2)
+binom.fiberid2 <- glm(class ~ fiberid + dec + z + camcol + redshift + plate, family = binomial, 
+                 data = SDSS)
+summary(binom.fiberid2)
+```
+
+None of the variables were significant
+
+```{r}
+# check for plausible interactions
+binom.dz <- glm(class ~ dec + z + camcol + redshift + plate + dec*z, family = binomial, 
+                data = SDSS)
+summary(binom.dz)
+binom.dc <- glm(class ~ dec + z + camcol + redshift + plate + dec*camcol, 
+                family = binomial, data = SDSS)
+summary(binom.dc)
+binom.dr <- glm(class ~ dec + z + camcol + redshift + plate + dec*redshift, 
+                family = binomial, data = SDSS)
+summary(binom.dr)
+binom.dp <- glm(class ~ dec + z + camcol + redshift + plate + dec*plate, 
+                family = binomial, data = SDSS)
+summary(binom.dp)
+binom.zc <- glm(class ~ dec + z + camcol + redshift + plate + z*camcol, 
+                family = binomial, data = SDSS)
+summary(binom.zc)
+binom.zr <- glm(class ~ dec + z + camcol + redshift + plate + z*redshift, 
+                family = binomial, data = SDSS)
+summary(binom.zr)
+binom.zp <- glm(class ~ dec + z + camcol + redshift + plate + z*plate, 
+                family = binomial, data = SDSS)
+summary(binom.zp)
+binom.cr <- glm(class ~ dec + z + camcol + redshift + plate + camcol*redshift, 
+                family = binomial, data = SDSS)
+summary(binom.cr)
+binom.cp <- glm(class ~ dec + z + camcol + redshift + plate + camcol*plate, 
+                family = binomial, data = SDSS)
+summary(binom.cp)
+binom.rp <- glm(class ~ dec + z + camcol + redshift + plate + redshift*plate, 
+                family = binomial, data = SDSS)
+summary(binom.rp)
+```
+
+
+Interaction between dec and redshift was significant
+
+```{r}
+# final model
+binom.final <- glm(class ~ dec + z + camcol + redshift + plate + dec*redshift, 
+                   family = binomial, data = SDSS)
+summary(binom.final)
+# check the significance of the final model against a null model
+binom.fit0 <- glm(class ~ 1, family = binomial, data = SDSS)
+anova(binom.final, binom.fit0, test = "LRT")
+```
+
+Final model was very significant
+
+# Model Accuracy
+
+```{r}
+# create a confusion matrix and check the accuracy
+pred <- predict(fit.final, test, type = "response")
+bcl.pred <- data.frame(pred)
+bcl.classes <- max.col(bcl.pred) - 1
+test[test=="STAR"] <- 0
+test[test=="GALAXY"] <- 1
+test[test=="QSO"] <- 2
+# BCL model
+library(cvms)
+conf_mat1 <- confusion_matrix(targets = test$class, predictions = bcl.classes)
+plot_confusion_matrix(conf_mat1$`Confusion Matrix`[[1]])
+library(caret)
+confusionMatrix(as.factor(test$class), as.factor(bcl.classes))
+```
+
+
+Accuracy: 98.37%
+
+```{r}
+test[test==2] <- 1
+binom.pred <- predict(binom.final, test, type = "response")
+binom.classes <- ifelse(binom.pred > 0.5, 1, 0)
+# Binary Logistic Regression model
+conf_mat2 <- confusion_matrix(targets = test$class, predictions = binom.classes)
+plot_confusion_matrix(conf_mat2$`Confusion Matrix`[[1]])
+confusionMatrix(as.factor(test$class), as.factor(binom.classes))
+```
+
+
+Accuracy: 99.77%
